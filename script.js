@@ -1,0 +1,26 @@
+'use strict';
+// Независимый калькулятор. МРП и категории актуальны на 2026 год.
+const MRP=4325;
+const specials=new Set(['010','020','030','040','050','060','070','077','080','090','707']);
+const repeated=new Set(['100','111','200','222','300','333','400','444','500','555','600','666','700','800','888','900','999']);
+const premium=new Set(['001','002','003','004','005','006','007','008','009','777']);
+const $=id=>document.getElementById(id);
+const ids=['digits','letters','region'];
+const sanitize=(v,type)=>type==='letters'?v.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3):v.replace(/\D/g,'').slice(0,type==='region'?2:3);
+const fmt=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₸';
+function rate(n,s){const same=s.length===3&&s[0]===s[1]&&s[1]===s[2];if(premium.has(n))return {mrp:same?285:228,name:'Премиум-комбинация'};if(repeated.has(n))return {mrp:same?194:137,name:'Повторяющиеся / круглые цифры'};if(specials.has(n))return {mrp:same?114:57,name:'Особые цифры'};const mirror=n[0]===n[2]&&n[0]!==n[1];if(mirror)return {mrp:same?72:15,name:'Зеркальный номер'};if(same)return {mrp:57,name:'Три одинаковые буквы'};return {mrp:10,name:'Номер на выбор'};}
+function values(){return ids.map(id=>$(id).value)}
+function update(){const [n,s,r]=values();$('plateDigits').textContent=n||'—';$('plateLetters').textContent=s||'—';$('plateRegion').textContent=r||'—';$('streamDigits').textContent=n||'—';$('streamLetters').textContent=s||'—';$('streamRegion').textContent=r||'—';const valid=n.length===3&&s.length===3&&r.length===2&&r!=='00';$('error').textContent=valid?'':'Введите 3 цифры, 3 латинские буквы и 2 цифры региона.';if(!valid){$('price').textContent='—';$('streamPrice').textContent='—';$('category').textContent='Заполните номер';$('streamCategory').textContent='Заполните номер';$('mrpCount').textContent='—';$('fullNumber').textContent='—';return;}const v=rate(n,s),cat=`${v.name} · ${v.mrp} МРП`; $('price').textContent=fmt(v.mrp*MRP);$('streamPrice').textContent=fmt(v.mrp*MRP);$('category').textContent=cat;$('streamCategory').textContent=cat;$('mrpCount').textContent=v.mrp+' МРП';$('fullNumber').textContent=`${n} ${s} ${r}`;}
+ids.forEach(id=>$(id).addEventListener('input',e=>{e.target.value=sanitize(e.target.value,id);update()}));
+function apply(n,s,r){$('digits').value=sanitize(n,'digits');$('letters').value=sanitize(s,'letters');$('region').value=sanitize(r,'region');update()}
+document.querySelectorAll('.chips button').forEach(btn=>btn.addEventListener('click',()=>apply(btn.dataset.number,btn.dataset.ser,$('region').value)));
+const examples=[['777','AAA','02'],['999','BKK','05'],['080','MEN','08'],['121','ABC','01'],['001','KZK','02'],['707','NUR','17'],['456','BMW','01']];$('randomBtn').onclick=()=>{const e=examples[Math.floor(Math.random()*examples.length)];apply(...e)};
+$('copyBtn').onclick=async()=>{const [n,s,r]=values();if(n.length!==3||s.length!==3||r.length!==2)return;const txt=`${n} ${s} ${r} — ${$('price').textContent} (ориентировочно, 2026)`;try{await navigator.clipboard.writeText(txt);$('copyBtn').textContent='✓ Скопировано';setTimeout(()=>$('copyBtn').textContent='▣ Копировать',1500)}catch{window.prompt('Скопируйте:',txt)}};
+const storageKey='kzNumbers2026Favorites';function readSaved(){try{const val=JSON.parse(localStorage.getItem(storageKey)||'[]');return Array.isArray(val)?val:[]}catch{return []}}
+function renderSaved(){const data=readSaved();const root=$('favorites');root.replaceChildren();if(!data.length){const p=document.createElement('p');p.className='empty';p.textContent='Пока нет сохранённых номеров';root.appendChild(p);return;}data.forEach((a,i)=>{const row=document.createElement('div');row.className='favorite-item';const title=document.createElement('strong');title.textContent=`${a[0]} ${a[1]} ${a[2]}`;const open=document.createElement('button');open.textContent='Показать';open.onclick=()=>apply(...a);const del=document.createElement('button');del.className='delete';del.textContent='✕';del.setAttribute('aria-label','Удалить');del.onclick=()=>{const x=readSaved();x.splice(i,1);localStorage.setItem(storageKey,JSON.stringify(x));renderSaved()};row.append(title,open,del);root.appendChild(row)})}
+$('saveBtn').onclick=()=>{const a=values();if(a[0].length!==3||a[1].length!==3||a[2].length!==2||a[2]==='00')return;let saved=readSaved();if(!saved.some(b=>b.join('|')===a.join('|')))saved.unshift(a);saved=saved.slice(0,25);localStorage.setItem(storageKey,JSON.stringify(saved));renderSaved();$('saveBtn').textContent='♥️ Сохранено';setTimeout(()=>$('saveBtn').textContent='♡ Сохранить',1500)};
+function closeBroadcast(){$('broadcast').classList.remove('open');$('broadcast').setAttribute('aria-hidden','true');document.body.style.overflow=''}
+$('showBtn').onclick=()=>{const [n,s,r]=values();$('streamInput').value=n;$('streamSeries').value=s;$('streamArea').value=r;$('broadcast').classList.add('open');$('broadcast').setAttribute('aria-hidden','false');document.body.style.overflow='hidden'};
+$('exitBtn').onclick=closeBroadcast;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeBroadcast()});
+$('streamApply').onclick=()=>{apply($('streamInput').value,$('streamSeries').value,$('streamArea').value);$('streamInput').value=$('digits').value;$('streamSeries').value=$('letters').value;$('streamArea').value=$('region').value};
+update();renderSaved();
